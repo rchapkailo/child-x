@@ -1,5 +1,5 @@
 {
-  "name": "@romalvivua/child-x",
+  "name": "@rchapkailo/child-x",
   "version": "0.1.0",
   "module": "./dist/index.js",
   "main": "./dist/index.js",
