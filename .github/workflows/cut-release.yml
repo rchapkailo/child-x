@@ -160,10 +160,23 @@ jobs:
           RELEASE_BRANCH: ${{ steps.release_branch.outputs.name }}
           SOURCE_COMMIT_SHA: ${{ steps.resolve_child_commit.outputs.source_commit_sha }}
           GH_TOKEN: ${{ secrets.GH_PR_TOKEN != '' && secrets.GH_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN_SOURCE: ${{ secrets.GH_PR_TOKEN != '' && 'GH_PR_TOKEN' || 'GITHUB_TOKEN' }}
         run: |
           if [[ -z "$GH_TOKEN" ]]; then
             echo "Missing token to create release branch. Configure GH_PR_TOKEN or use GITHUB_TOKEN permissions."
             exit 1
+          fi
+          echo "Token source selected for push: $GH_TOKEN_SOURCE"
+          ACTOR_JSON=$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/user" 2>/dev/null || true)
+          if [[ -n "$ACTOR_JSON" ]]; then
+            TOKEN_LOGIN=$(node -e "const d=JSON.parse(process.argv[1]); process.stdout.write(d.login||'unknown');" "$ACTOR_JSON")
+            TOKEN_TYPE=$(node -e "const d=JSON.parse(process.argv[1]); process.stdout.write(d.type||'unknown');" "$ACTOR_JSON")
+            echo "Authenticated token identity: $TOKEN_LOGIN ($TOKEN_TYPE)"
+          else
+            echo "Could not resolve token identity via /user endpoint."
           fi
           AUTHED_REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           set +e
