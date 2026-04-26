@@ -103,7 +103,7 @@ jobs:
             "plugins": ["@semantic-release/commit-analyzer"]
           }
           EOF
-          SEMANTIC_RELEASE_OUTPUT=$(npx --yes --package semantic-release --package @semantic-release/commit-analyzer semantic-release --dry-run --no-ci --repository-url . 2>&1 || true)
+          SEMANTIC_RELEASE_OUTPUT=$(npx --yes --package semantic-release --package @semantic-release/commit-analyzer semantic-release --dry-run --no-ci --repository-url "file://$PWD/.git" 2>&1 || true)
           printf '%s\n' "$SEMANTIC_RELEASE_OUTPUT"
           COMPUTED_VERSION=$(printf '%s\n' "$SEMANTIC_RELEASE_OUTPUT" | sed -n 's/.*The next release version is //p' | tail -n 1)
           if [[ -z "$COMPUTED_VERSION" ]]; then
