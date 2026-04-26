@@ -159,7 +159,14 @@ jobs:
         env:
           RELEASE_BRANCH: ${{ steps.release_branch.outputs.name }}
           SOURCE_COMMIT_SHA: ${{ steps.resolve_child_commit.outputs.source_commit_sha }}
-        run: git push origin "$SOURCE_COMMIT_SHA":refs/heads/$RELEASE_BRANCH
+          GH_TOKEN: ${{ secrets.GH_PR_TOKEN != '' && secrets.GH_PR_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "Missing token to create release branch. Configure GH_PR_TOKEN or use GITHUB_TOKEN permissions."
+            exit 1
+          fi
+          AUTHED_REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push "$AUTHED_REMOTE" "$SOURCE_COMMIT_SHA":refs/heads/$RELEASE_BRANCH
 
       - name: Return to main
         run: git checkout -B main origin/main
