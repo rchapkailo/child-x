@@ -105,6 +105,7 @@ jobs:
 
           git init --bare "$TEMP_REMOTE"
           git push "file://$TEMP_REMOTE" "$SOURCE_COMMIT_SHA":refs/heads/$ANALYSIS_BRANCH
+          git --git-dir "$TEMP_REMOTE" symbolic-ref HEAD "refs/heads/$ANALYSIS_BRANCH"
           git checkout -B "$ANALYSIS_BRANCH" "$SOURCE_COMMIT_SHA"
 
           cat > .releaserc.json <<EOF
