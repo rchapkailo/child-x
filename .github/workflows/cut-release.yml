@@ -166,7 +166,18 @@ jobs:
             exit 1
           fi
           AUTHED_REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push "$AUTHED_REMOTE" "$SOURCE_COMMIT_SHA":refs/heads/$RELEASE_BRANCH
+          set +e
+          PUSH_OUTPUT=$(git push "$AUTHED_REMOTE" "$SOURCE_COMMIT_SHA":refs/heads/$RELEASE_BRANCH 2>&1)
+          PUSH_EXIT=$?
+          set -e
+          printf '%s\n' "$PUSH_OUTPUT"
+          if [[ $PUSH_EXIT -ne 0 ]]; then
+            if printf '%s\n' "$PUSH_OUTPUT" | grep -q 'GH013: Repository rule violations found'; then
+              echo "Release branch creation was blocked by repository rules."
+              echo "Required: GH_PR_TOKEN with workflow-capable permissions and a ruleset exception/bypass for this automation on release/* creation."
+            fi
+            exit $PUSH_EXIT
+          fi
 
       - name: Return to main
         run: git checkout -B main origin/main
