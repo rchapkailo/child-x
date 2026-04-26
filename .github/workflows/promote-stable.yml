@@ -61,7 +61,7 @@ jobs:
 
       - name: Verify canary package exists
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN != '' && secrets.GH_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           for attempt in 1 2 3; do
             if npm view "${{ steps.package.outputs.name }}@${{ steps.parent_canary.outputs.version }}" version; then
@@ -77,7 +77,7 @@ jobs:
 
       - name: Verify parent canary matches current canary tag
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN != '' && secrets.GH_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
           PARENT_CANARY_VERSION: ${{ steps.parent_canary.outputs.version }}
         run: |
           DIST_TAGS_JSON=""
@@ -106,7 +106,7 @@ jobs:
 
       - name: Promote canary to latest
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN != '' && secrets.GH_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           for attempt in 1 2 3; do
             if npm dist-tag add "${{ steps.package.outputs.name }}@${{ steps.parent_canary.outputs.version }}" latest; then
@@ -122,7 +122,7 @@ jobs:
 
       - name: Show resulting dist-tags
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN != '' && secrets.GH_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
         run: npm view "${{ steps.package.outputs.name }}" dist-tags --json
 
       - name: Compute next development version
