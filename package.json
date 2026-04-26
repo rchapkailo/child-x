@@ -1,6 +1,6 @@
 {
   "name": "@rchapkailo/child-x",
-  "version": "0.1.1",
+  "version": "1.0.1",
   "files": [
     "index.ts",
     "README.md"
