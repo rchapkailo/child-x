@@ -92,28 +92,32 @@ jobs:
         id: release_branch
         env:
           SOURCE_COMMIT_SHA: ${{ steps.resolve_child_commit.outputs.source_commit_sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Compute bump directly from commit messages to keep logic deterministic.
-          git checkout -B release-analysis "$SOURCE_COMMIT_SHA"
+          # semantic-release dry-run verifies remote/branch permissions even in no-publish mode.
+          # Use a temporary remote analysis branch at SOURCE_COMMIT_SHA so checks are valid.
+          ANALYSIS_BRANCH="sr-analysis-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() {
+            git push origin --delete "$ANALYSIS_BRANCH" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
 
-          LAST_TAG=$(git describe --tags --abbrev=0 "$SOURCE_COMMIT_SHA" 2>/dev/null || true)
-          if [[ -n "$LAST_TAG" ]]; then
-            COMMIT_RANGE="$LAST_TAG..$SOURCE_COMMIT_SHA"
-            BASE_VERSION="${LAST_TAG#v}"
-          else
-            COMMIT_RANGE="$SOURCE_COMMIT_SHA"
-            BASE_VERSION=$(node -e "const pkg=require('./package.json'); process.stdout.write((pkg.version||'0.0.0').replace(/^v/,''));")
-          fi
+          git push origin "$SOURCE_COMMIT_SHA":refs/heads/$ANALYSIS_BRANCH
+          git fetch origin "$ANALYSIS_BRANCH":refs/remotes/origin/$ANALYSIS_BRANCH
+          git checkout -B "$ANALYSIS_BRANCH" "origin/$ANALYSIS_BRANCH"
 
-          RELEASE_TYPE=$(git log --format=%s%n%b%x00 "$COMMIT_RANGE" | node -e "const fs=require('fs'); const input=fs.readFileSync(0,'utf8'); const commits=input.split('\\u0000').map((s)=>s.trim()).filter(Boolean); let release=''; for (const msg of commits) { if (/(^|\\n)BREAKING CHANGE:|^[^\\n:]+\([^\\n)]*\)?!:/m.test(msg) || /^[^\\n:]+!:/m.test(msg)) { release='major'; break; } if (!release && /^feat(\([^\\n)]*\))?:/m.test(msg)) { release='minor'; } if (!release && /^(fix|perf|revert)(\([^\\n)]*\))?:/m.test(msg)) { release='patch'; } } process.stdout.write(release);")
-          if [[ -z "$RELEASE_TYPE" ]]; then
-            echo "Could not determine release type from commits in range: $COMMIT_RANGE"
-            exit 1
-          fi
+          cat > .releaserc.json <<EOF
+          {
+            "branches": ["$ANALYSIS_BRANCH"],
+            "plugins": ["@semantic-release/commit-analyzer"]
+          }
+          EOF
 
-          COMPUTED_VERSION=$(node -e "const [maj,min,pat]=(process.argv[1]||'').split('.').map(Number); const type=process.argv[2]; if([maj,min,pat].some(Number.isNaN)){process.exit(1)}; let next=null; if(type==='major'){next=[maj+1,0,0]} else if(type==='minor'){next=[maj,min+1,0]} else if(type==='patch'){next=[maj,min,pat+1]} else {process.exit(2)}; process.stdout.write(next.join('.'));" "$BASE_VERSION" "$RELEASE_TYPE")
+          SEMANTIC_RELEASE_OUTPUT=$(npx --yes --package semantic-release --package @semantic-release/commit-analyzer semantic-release --dry-run --no-ci --branches "$ANALYSIS_BRANCH" --repository-url "https://github.com/${GITHUB_REPOSITORY}.git" 2>&1 || true)
+          printf '%s\n' "$SEMANTIC_RELEASE_OUTPUT"
+          COMPUTED_VERSION=$(printf '%s\n' "$SEMANTIC_RELEASE_OUTPUT" | sed -n 's/.*The next release version is //p' | tail -n 1)
           if [[ -z "$COMPUTED_VERSION" ]]; then
-            echo "Could not compute a release version from base $BASE_VERSION and release type $RELEASE_TYPE"
+            echo "Could not compute a release version from commits up to $SOURCE_COMMIT_SHA"
             exit 1
           fi
           MAJOR=$(echo "$COMPUTED_VERSION" | cut -d. -f1)
