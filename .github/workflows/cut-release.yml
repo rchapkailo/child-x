@@ -92,10 +92,8 @@ jobs:
         id: release_branch
         env:
           SOURCE_COMMIT_SHA: ${{ steps.resolve_child_commit.outputs.source_commit_sha }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Analyze commit messages directly at the resolved source commit.
-          # This avoids semantic-release remote branch checks in workflow context.
+          # Compute bump directly from commit messages to keep logic deterministic.
           git checkout -B release-analysis "$SOURCE_COMMIT_SHA"
 
           LAST_TAG=$(git describe --tags --abbrev=0 "$SOURCE_COMMIT_SHA" 2>/dev/null || true)
@@ -107,7 +105,7 @@ jobs:
             BASE_VERSION=$(node -e "const pkg=require('./package.json'); process.stdout.write((pkg.version||'0.0.0').replace(/^v/,''));")
           fi
 
-          RELEASE_TYPE=$(git log --format=%B%x00 "$COMMIT_RANGE" | npx --yes --package @semantic-release/commit-analyzer --package conventional-changelog-angular node -e "const fs=require('fs'); const analyze=require('@semantic-release/commit-analyzer'); const input=fs.readFileSync(0,'utf8'); const commits=input.split('\\u0000').filter(Boolean).map((message)=>({message})); const logger={log:()=>{},error:console.error}; analyze({preset:'angular'},{commits,logger,cwd:process.cwd(),env:process.env,options:{}}).then((type)=>process.stdout.write(type||'')).catch((err)=>{console.error(err); process.exit(1);});")
+          RELEASE_TYPE=$(git log --format=%s%n%b%x00 "$COMMIT_RANGE" | node -e "const fs=require('fs'); const input=fs.readFileSync(0,'utf8'); const commits=input.split('\\u0000').map((s)=>s.trim()).filter(Boolean); let release=''; for (const msg of commits) { if (/(^|\\n)BREAKING CHANGE:|^[^\\n:]+\([^\\n)]*\)?!:/m.test(msg) || /^[^\\n:]+!:/m.test(msg)) { release='major'; break; } if (!release && /^feat(\([^\\n)]*\))?:/m.test(msg)) { release='minor'; } if (!release && /^(fix|perf|revert)(\([^\\n)]*\))?:/m.test(msg)) { release='patch'; } } process.stdout.write(release);")
           if [[ -z "$RELEASE_TYPE" ]]; then
             echo "Could not determine release type from commits in range: $COMMIT_RANGE"
             exit 1
