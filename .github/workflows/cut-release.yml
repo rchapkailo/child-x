@@ -94,16 +94,16 @@ jobs:
           SOURCE_COMMIT_SHA: ${{ steps.resolve_child_commit.outputs.source_commit_sha }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Keep semantic-release on a valid remote release branch name.
-          # Repoint local main to the resolved commit for version computation.
-          git checkout -B main "$SOURCE_COMMIT_SHA"
+          # Analyze commit history at the resolved source commit on a local-only branch.
+          # This avoids semantic-release remote behind checks against origin/main.
+          git checkout -B release-analysis "$SOURCE_COMMIT_SHA"
           cat > .releaserc.json <<'EOF'
           {
-            "branches": ["main"],
+            "branches": ["release-analysis"],
             "plugins": ["@semantic-release/commit-analyzer"]
           }
           EOF
-          SEMANTIC_RELEASE_OUTPUT=$(npx --yes --package semantic-release --package @semantic-release/commit-analyzer semantic-release --dry-run --no-ci --repository-url "https://github.com/${GITHUB_REPOSITORY}.git" 2>&1 || true)
+          SEMANTIC_RELEASE_OUTPUT=$(npx --yes --package semantic-release --package @semantic-release/commit-analyzer semantic-release --dry-run --no-ci --repository-url . 2>&1 || true)
           printf '%s\n' "$SEMANTIC_RELEASE_OUTPUT"
           COMPUTED_VERSION=$(printf '%s\n' "$SEMANTIC_RELEASE_OUTPUT" | sed -n 's/.*The next release version is //p' | tail -n 1)
           if [[ -z "$COMPUTED_VERSION" ]]; then
