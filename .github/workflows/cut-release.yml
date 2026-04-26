@@ -92,19 +92,20 @@ jobs:
         id: release_branch
         env:
           SOURCE_COMMIT_SHA: ${{ steps.resolve_child_commit.outputs.source_commit_sha }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # semantic-release dry-run verifies remote/branch permissions even in no-publish mode.
-          # Use a temporary remote analysis branch at SOURCE_COMMIT_SHA so checks are valid.
-          ANALYSIS_BRANCH="sr-analysis-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          # Use a local bare repo as temporary remote to avoid GitHub token workflow-file push restrictions.
+          ANALYSIS_BRANCH="sr-analysis"
+          TEMP_GIT_DIR=$(mktemp -d)
+          TEMP_REMOTE="$TEMP_GIT_DIR/semantic-release-remote.git"
           cleanup() {
-            git push origin --delete "$ANALYSIS_BRANCH" >/dev/null 2>&1 || true
+            rm -rf "$TEMP_GIT_DIR"
           }
           trap cleanup EXIT
 
-          git push origin "$SOURCE_COMMIT_SHA":refs/heads/$ANALYSIS_BRANCH
-          git fetch origin "$ANALYSIS_BRANCH":refs/remotes/origin/$ANALYSIS_BRANCH
-          git checkout -B "$ANALYSIS_BRANCH" "origin/$ANALYSIS_BRANCH"
+          git init --bare "$TEMP_REMOTE"
+          git push "file://$TEMP_REMOTE" "$SOURCE_COMMIT_SHA":refs/heads/$ANALYSIS_BRANCH
+          git checkout -B "$ANALYSIS_BRANCH" "$SOURCE_COMMIT_SHA"
 
           cat > .releaserc.json <<EOF
           {
@@ -113,7 +114,7 @@ jobs:
           }
           EOF
 
-          SEMANTIC_RELEASE_OUTPUT=$(npx --yes --package semantic-release --package @semantic-release/commit-analyzer semantic-release --dry-run --no-ci --branches "$ANALYSIS_BRANCH" --repository-url "https://github.com/${GITHUB_REPOSITORY}.git" 2>&1 || true)
+          SEMANTIC_RELEASE_OUTPUT=$(npx --yes --package semantic-release --package @semantic-release/commit-analyzer semantic-release --dry-run --no-ci --branches "$ANALYSIS_BRANCH" --repository-url "file://$TEMP_REMOTE" 2>&1 || true)
           printf '%s\n' "$SEMANTIC_RELEASE_OUTPUT"
           COMPUTED_VERSION=$(printf '%s\n' "$SEMANTIC_RELEASE_OUTPUT" | sed -n 's/.*The next release version is //p' | tail -n 1)
           if [[ -z "$COMPUTED_VERSION" ]]; then
