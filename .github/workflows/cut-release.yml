@@ -166,6 +166,8 @@ jobs:
             echo "Missing token to create release branch. Configure GH_PACKAGES_TOKEN or use GITHUB_TOKEN permissions."
             exit 1
           fi
+          TOKEN_LOGIN="x-access-token"
+          TOKEN_TYPE="Unknown"
           echo "Token source selected for push: $GH_TOKEN_SOURCE"
           ACTOR_JSON=$(curl -fsSL \
             -H "Authorization: Bearer $GH_TOKEN" \
@@ -178,7 +180,12 @@ jobs:
           else
             echo "Could not resolve token identity via /user endpoint."
           fi
-          AUTHED_REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # PAT/user tokens should use login as username; app tokens use x-access-token.
+          if [[ "$TOKEN_TYPE" == "User" && "$TOKEN_LOGIN" != "unknown" ]]; then
+            AUTHED_REMOTE="https://${TOKEN_LOGIN}:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          else
+            AUTHED_REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          fi
           set +e
           PUSH_OUTPUT=$(git push "$AUTHED_REMOTE" "$SOURCE_COMMIT_SHA":refs/heads/$RELEASE_BRANCH 2>&1)
           PUSH_EXIT=$?
