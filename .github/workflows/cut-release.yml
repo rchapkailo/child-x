@@ -94,7 +94,9 @@ jobs:
           SOURCE_COMMIT_SHA: ${{ steps.resolve_child_commit.outputs.source_commit_sha }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-                    # Keep semantic-release on a valid remote release branch name.`n          # Repoint local main to the resolved commit for version computation.`n          git checkout -B main "$SOURCE_COMMIT_SHA"
+          # Keep semantic-release on a valid remote release branch name.
+          # Repoint local main to the resolved commit for version computation.
+          git checkout -B main "$SOURCE_COMMIT_SHA"
           cat > .releaserc.json <<'EOF'
           {
             "branches": ["main"],
