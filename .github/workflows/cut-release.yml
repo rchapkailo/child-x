@@ -94,20 +94,28 @@ jobs:
           SOURCE_COMMIT_SHA: ${{ steps.resolve_child_commit.outputs.source_commit_sha }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Analyze commit history at the resolved source commit on a local-only branch.
-          # This avoids semantic-release remote behind checks against origin/main.
+          # Analyze commit messages directly at the resolved source commit.
+          # This avoids semantic-release remote branch checks in workflow context.
           git checkout -B release-analysis "$SOURCE_COMMIT_SHA"
-          cat > .releaserc.json <<'EOF'
-          {
-            "branches": ["release-analysis"],
-            "plugins": ["@semantic-release/commit-analyzer"]
-          }
-          EOF
-          SEMANTIC_RELEASE_OUTPUT=$(npx --yes --package semantic-release --package @semantic-release/commit-analyzer semantic-release --dry-run --no-ci --repository-url "file://$PWD/.git" 2>&1 || true)
-          printf '%s\n' "$SEMANTIC_RELEASE_OUTPUT"
-          COMPUTED_VERSION=$(printf '%s\n' "$SEMANTIC_RELEASE_OUTPUT" | sed -n 's/.*The next release version is //p' | tail -n 1)
+
+          LAST_TAG=$(git describe --tags --abbrev=0 "$SOURCE_COMMIT_SHA" 2>/dev/null || true)
+          if [[ -n "$LAST_TAG" ]]; then
+            COMMIT_RANGE="$LAST_TAG..$SOURCE_COMMIT_SHA"
+            BASE_VERSION="${LAST_TAG#v}"
+          else
+            COMMIT_RANGE="$SOURCE_COMMIT_SHA"
+            BASE_VERSION=$(node -e "const pkg=require('./package.json'); process.stdout.write((pkg.version||'0.0.0').replace(/^v/,''));")
+          fi
+
+          RELEASE_TYPE=$(git log --format=%B%x00 "$COMMIT_RANGE" | npx --yes --package @semantic-release/commit-analyzer --package conventional-changelog-angular node -e "const fs=require('fs'); const analyze=require('@semantic-release/commit-analyzer'); const input=fs.readFileSync(0,'utf8'); const commits=input.split('\\u0000').filter(Boolean).map((message)=>({message})); const logger={log:()=>{},error:console.error}; analyze({preset:'angular'},{commits,logger,cwd:process.cwd(),env:process.env,options:{}}).then((type)=>process.stdout.write(type||'')).catch((err)=>{console.error(err); process.exit(1);});")
+          if [[ -z "$RELEASE_TYPE" ]]; then
+            echo "Could not determine release type from commits in range: $COMMIT_RANGE"
+            exit 1
+          fi
+
+          COMPUTED_VERSION=$(node -e "const [maj,min,pat]=(process.argv[1]||'').split('.').map(Number); const type=process.argv[2]; if([maj,min,pat].some(Number.isNaN)){process.exit(1)}; let next=null; if(type==='major'){next=[maj+1,0,0]} else if(type==='minor'){next=[maj,min+1,0]} else if(type==='patch'){next=[maj,min,pat+1]} else {process.exit(2)}; process.stdout.write(next.join('.'));" "$BASE_VERSION" "$RELEASE_TYPE")
           if [[ -z "$COMPUTED_VERSION" ]]; then
-            echo "Could not compute a release version from commits up to $SOURCE_COMMIT_SHA"
+            echo "Could not compute a release version from base $BASE_VERSION and release type $RELEASE_TYPE"
             exit 1
           fi
           MAJOR=$(echo "$COMPUTED_VERSION" | cut -d. -f1)
