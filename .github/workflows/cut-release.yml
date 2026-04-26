@@ -40,10 +40,10 @@ jobs:
           PARENT_REPO: ${{ inputs.parent_repo }}
           CHILD_REPO: ${{ github.repository }}
           CHILD_PACKAGE_NAME: '@rchapkailo/child-x'
-          GH_TOKEN: ${{ secrets.GH_PR_TOKEN != '' && secrets.GH_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN != '' && secrets.GH_PACKAGES_TOKEN || secrets.GH_PR_TOKEN != '' && secrets.GH_PR_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           if [[ -z "$GH_TOKEN" ]]; then
-            echo "Missing token to query GitHub API. Configure GH_PR_TOKEN or use GITHUB_TOKEN permissions."
+            echo "Missing token to query GitHub API. Configure GH_PACKAGES_TOKEN or GH_PR_TOKEN, or use GITHUB_TOKEN permissions."
             exit 1
           fi
           PARENT_PKG_JSON=$(curl -fsSL \
@@ -159,11 +159,11 @@ jobs:
         env:
           RELEASE_BRANCH: ${{ steps.release_branch.outputs.name }}
           SOURCE_COMMIT_SHA: ${{ steps.resolve_child_commit.outputs.source_commit_sha }}
-          GH_TOKEN: ${{ secrets.GH_PR_TOKEN != '' && secrets.GH_PR_TOKEN || secrets.GITHUB_TOKEN }}
-          GH_TOKEN_SOURCE: ${{ secrets.GH_PR_TOKEN != '' && 'GH_PR_TOKEN' || 'GITHUB_TOKEN' }}
+          GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN != '' && secrets.GH_PACKAGES_TOKEN || secrets.GH_PR_TOKEN != '' && secrets.GH_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN_SOURCE: ${{ secrets.GH_PACKAGES_TOKEN != '' && 'GH_PACKAGES_TOKEN' || secrets.GH_PR_TOKEN != '' && 'GH_PR_TOKEN' || 'GITHUB_TOKEN' }}
         run: |
           if [[ -z "$GH_TOKEN" ]]; then
-            echo "Missing token to create release branch. Configure GH_PR_TOKEN or use GITHUB_TOKEN permissions."
+            echo "Missing token to create release branch. Configure GH_PACKAGES_TOKEN or GH_PR_TOKEN, or use GITHUB_TOKEN permissions."
             exit 1
           fi
           echo "Token source selected for push: $GH_TOKEN_SOURCE"
@@ -187,7 +187,7 @@ jobs:
           if [[ $PUSH_EXIT -ne 0 ]]; then
             if printf '%s\n' "$PUSH_OUTPUT" | grep -q 'GH013: Repository rule violations found'; then
               echo "Release branch creation was blocked by repository rules."
-              echo "Required: GH_PR_TOKEN with workflow-capable permissions and a ruleset exception/bypass for this automation on release/* creation."
+              echo "Required: GH_PACKAGES_TOKEN or GH_PR_TOKEN with workflow-capable permissions and a ruleset exception/bypass for this automation on release/* creation."
             fi
             exit $PUSH_EXIT
           fi
@@ -210,7 +210,7 @@ jobs:
       - name: Open PR for next development baseline
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GH_PR_TOKEN != '' && secrets.GH_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_PACKAGES_TOKEN != '' && secrets.GH_PACKAGES_TOKEN || secrets.GH_PR_TOKEN != '' && secrets.GH_PR_TOKEN || secrets.GITHUB_TOKEN }}
           commit-message: "chore: start next sprint at v${{ steps.next_baseline.outputs.version }}"
           branch: chore/next-sprint-v${{ steps.next_baseline.outputs.version }}
           delete-branch: true
